@@ -1,0 +1,6 @@
+benchmark,task1_CPI,task2_CPI_stall,task2_CPI_fw,task2_speedup,task3_CPI_stall,task3_CPI_fw,task4_CPI,task4_speedup,task5_CPI,task5_speedup
+fpppp,1.7993,1.7993,1.0083,1.78448,1.7993,1.0083,1.0083,1,,
+go,2.0835,2.0835,1.1016,1.89134,1.7993,1.0083,1.1016,1,,
+gcc,1.7758,1.7758,1.1228,1.5816,1.7993,1.0083,1.1228,1,,
+vpr,1.8974,1.8974,1.0936,1.7350,1.7993,1.0083,1.0936,1,,
+
