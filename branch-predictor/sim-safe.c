@@ -84,14 +84,15 @@ static counter_t g_total_cond_branches_v = 0;
 // total number of mispredictions
 static counter_t g_total_mispredictions = 0;
 static counter_t g_total_mispredictions_ii = 0;
-static counter_t g_total_mispredictions_iii = 0;
+static counter_t g_total_predictions_iii = 0;
 static counter_t g_total_mispredictions_iv = 0;
 static counter_t g_total_mispredictions_v = 0;
 
 // branch predictor
 int bpred_pht[ENTRIES];
 int bpred_pht_ii[ENTRIES];
-int bpred_pht_iii[ENTRIES];
+int bpred_pht_iiia[ENTRIES];
+int bpred_pht_iiib[ENTRIES];
 int bpred_pht_iv[ENTRIES];
 int bpred_pht_v[ENTRIES];
 
@@ -167,13 +168,13 @@ sim_reg_stats(struct stat_sdb_t *sdb)
   stat_reg_counter(sdb, "sim_num_cond_branches_iii",
     "total number of conditional branches executed",
     &g_total_cond_branches_iii, g_total_cond_branches_iii, NULL);
-  stat_reg_counter(sdb, "sim_num_mispredict_iii",
+  stat_reg_counter(sdb, "sim_num_predict_iii",
 			"total number of mispredicted branches",
-			&g_total_mispredictions_iii,
-			g_total_mispredictions_iii, NULL);
+			&g_total_predictions_iii,
+			g_total_predictions_iii, NULL);
   stat_reg_formula(sdb, "sim_pred_accuracy_iii",
 			"branch prediction accuracy",
-			"1 - sim_num_mispredict_iii / sim_num_cond_branches_iii", NULL);
+			"sim_num_predict_iii / sim_num_cond_branches_iii", NULL);
 
   stat_reg_counter(sdb, "sim_num_cond_branches_iv",
     "total number of conditional branches executed",
@@ -457,26 +458,26 @@ sim_main(void)
         int prediction = bpred_pht_ii[ index ];
         int actual_outcome=(regs.regs_NPC!=(regs.regs_PC+sizeof(md_inst_t)));
 
-        if(prediction == 0 || prediction == 1) { // if prediction 00(0) or 01(1) then should be MISS
-          if(actual_outcome == 0) { // then prediction is correct
-            if(prediction == 0) bpred_pht_ii[index] = 0; // 00 to 00
-            if(prediction == 1) bpred_pht_ii[index] = 0; // 01 to 00
+        if(prediction == 0 || prediction == 1) { 
+          if(actual_outcome == 0) { 
+            if(prediction == 0) bpred_pht_ii[index] = 0; 
+            if(prediction == 1) bpred_pht_ii[index] = 0; 
           }
-          else if(actual_outcome == 1) { // then prediction is incorrect
+          else if(actual_outcome == 1) { 
             g_total_mispredictions_ii++;
-            if(prediction == 0) bpred_pht_ii[index] = 1; // 00 to 01
-            if(prediction == 1) bpred_pht_ii[index] = 2; // 01 to 11
+            if(prediction == 0) bpred_pht_ii[index] = 1; 
+            if(prediction == 1) bpred_pht_ii[index] = 2; 
           }
         }
-        else if(prediction == 2 || prediction == 3) { // if prediction 10(2) or 11(3) then should be HIT
-          if(actual_outcome == 0) { // then prediction is incorrect
+        else if(prediction == 2 || prediction == 3) { 
+          if(actual_outcome == 0) { 
             g_total_mispredictions_ii++;
-            if(prediction == 2) bpred_pht_ii[index] = 1; // 10 to 01
-            if(prediction == 3) bpred_pht_ii[index] = 2; // 11 to 10
+            if(prediction == 2) bpred_pht_ii[index] = 1; 
+            if(prediction == 3) bpred_pht_ii[index] = 2; 
           }
-          else if(actual_outcome == 1) { // then prediction is correct
-            if(prediction == 2) bpred_pht_ii[index] = 3; // 10 to 11
-            if(prediction == 3) bpred_pht_ii[index] = 3; // 11 to 11
+          else if(actual_outcome == 1) { 
+            if(prediction == 2) bpred_pht_ii[index] = 3; 
+            if(prediction == 3) bpred_pht_ii[index] = 3; 
           }
         }
       }
@@ -485,66 +486,21 @@ sim_main(void)
       /* BEGIN TASK 3 */
       if( MD_OP_FLAGS(op) & F_COND ) {
         g_total_cond_branches_iii++;
-        unsigned index = (regs.regs_PC >> 3) & ((1<<18)-1);
-        assert( index < 262144 );
-        int prediction = bpred_pht_iii[ index ];
-        int actual_outcome=(regs.regs_NPC!=(regs.regs_PC+sizeof(md_inst_t)));
-
-        if(history == 0) { 
-          if(prediction == 0 || prediction == 1) { // prediction is miss, because [0]0 [0]1
-            if(actual_outcome == 0) { // MISS prediction is correct
-              history = actual_outcome; // outcome was a miss
-              if(prediction == 0) bpred_pht_iii[index] = 0; // [0]0 to [0]0
-              if(prediction == 1) bpred_pht_iii[index] = 1; // [0]1 to [0]1
-            }
-            else if(actual_outcome == 1) { // MISS prediction is incorrect
-              g_total_mispredictions_iii++;
-              history = actual_outcome; // outcome was a hit
-              if(prediction == 0) bpred_pht_iii[index] = 2; // [0]0 to [1]0
-              if(prediction == 1) bpred_pht_iii[index] = 3; // [0]1 to [1]1
-            }
-          }
-          else if(prediction == 2 || prediction == 3) { //prediction is a hit because [1]0 [1]1
-            if(actual_outcome == 0) { // HIT prediction is incorrect
-              g_total_mispredictions_iii++;
-              history = actual_outcome; // outcome was a miss
-              if(prediction == 2) bpred_pht_iii[index] = 0; // [1]0 to [0]0
-              if(prediction == 3) bpred_pht_iii[index] = 1; // [1]1 to [0]1
-            }
-            else if(actual_outcome == 1) { // HIT prediction is correct
-              history = actual_outcome; // outcome was hit
-              if(prediction == 2) bpred_pht_iii[index] = 2; // [1]0 to [1]0
-              if(prediction == 3) bpred_pht_iii[index] = 3; // [1]1 to [1]1
-            }
-          }
-        }
-        else if(history == 1) { 
-          if(prediction == 0 || prediction == 2) { // prediction is miss, because 0[0] 1[0]
-            if(actual_outcome == 0) { // MISS prediction is correct
-              history = actual_outcome; // outcome was a miss
-              if(prediction == 0) bpred_pht_iii[index] = 0; // 0[0] to 0[0]
-              if(prediction == 2) bpred_pht_iii[index] = 2; // 1[0] to 1[0]
-            }
-            else if(actual_outcome == 1) { // MISS prediction is wrong
-              g_total_mispredictions_iii++;
-              history = actual_outcome; // outcome was a hit
-              if(prediction == 0) bpred_pht_iii[index] = 1; // 0[0] to 0[1]
-              if(prediction == 2) bpred_pht_iii[index] = 3; // 1[0] to 1[1]
-            }
-          }
-          else if(prediction == 1 || prediction == 3) { //prediction is a hit because 0[1] 1[1]
-            if(actual_outcome == 0) { // HIT prediction is incorrect
-              g_total_mispredictions_iii++;
-              history = actual_outcome; // coutcome was a miss
-              if(prediction == 1) bpred_pht_iii[index] = 0; // 0[1] to 0[0]
-              if(prediction == 3) bpred_pht_iii[index] = 2; // 1[1] to 1[0]
-            }
-            else if(actual_outcome == 1) { // HIT prediction is correct
-              history = actual_outcome; // outcome was a hit
-              if(prediction == 1) bpred_pht_iii[index] = 1; // 0[1] to 0[1]
-              if(prediction == 3) bpred_pht_iii[index] = 3; // 1[1] to 1[1]
-            }
-          }
+        unsigned index = (regs.regs_PC >> 3) & ((1<<17)-1);
+        int actual_outcome = (regs.regs_NPC!=(regs.regs_PC+sizeof(md_inst_t)));
+        int prediction = 0;
+        if  (index < 262144/2){
+          if (history == 1)
+            prediction = bpred_pht_iiia[index] ;
+          else 
+            prediction = bpred_pht_iiib[index];
+          
+          if (prediction == actual_outcome)
+            g_total_predictions_iii++;
+          if (history ==1)
+            bpred_pht_iiia[index] = actual_outcome;
+          else bpred_pht_iiib[index] = actual_outcome;
+          history = actual_outcome;
         }
       }
       /* END TASK 3 */
@@ -552,84 +508,29 @@ sim_main(void)
       /* BEGIN TASK 4 */
       if( MD_OP_FLAGS(op) & F_COND ) {
         g_total_cond_branches_iv++;
-        unsigned index = (regs.regs_PC >> 3) & ((1<<18)-1);
+        unsigned index = (history_iv << (18 - 18)) ^ ((regs.regs_PC >> 3) & ((1<<18)-1));
         assert( index < 262144 );
-        int whole_prediction = bpred_pht_iv[ index ];
-        int actual_outcome=(regs.regs_NPC!=(regs.regs_PC+sizeof(md_inst_t)));
-
-        // initialize variables
-        int bit_section = history_iv * 2; 
-        int temp = whole_prediction >> bit_section; 
-        int prediction = temp & 3;
-        int new_prediction;
-        int bit_mask;
-        int new_value;
-
-        if(prediction == 0 || prediction == 1) { // if prediction 00(0) or 01(1) then should be MISS
-          if(actual_outcome == 0) { // then prediction is correct
-            if(prediction == 0) new_prediction = 0; // 00 to 00
-            if(prediction == 1) new_prediction = 0; // 01 to 00
-            bit_mask = (3<<(bit_section));         // (mask of the bits you want to set)
-            new_value = (whole_prediction & (~bit_mask)) | (new_prediction<<(bit_section)); // bit mask to get the new value for the bit section
-            bpred_pht_iv[index] = new_value; // update the table
-            history_iv = ((history_iv << 1) & 15); // change history shift bit and keep first 4 bits
-          }
-          else if(actual_outcome == 1) { // then prediction is incorrect
-            g_total_mispredictions_iv++;
-            if(prediction == 0) new_prediction = 1; // 00 to 01
-            if(prediction == 1) new_prediction = 2; // 01 to 11
-            bit_mask = (3<<(bit_section));         // (mask of the bits you want to set)
-            new_value = (whole_prediction & (~bit_mask)) | (new_prediction<<(bit_section)); // bit mask to get the new value for the bit section
-            bpred_pht_iv[index] = new_value; // update the table
-            history_iv = ((history_iv << 1) & 15) + 1; // update history shift bit, keep first 4 bit and add 1 bit
+        
+        int prediction = (bpred_pht_iv[index] & 0x02) >> 1;
+        int actual_outcome = (regs.regs_NPC != (regs.regs_PC + sizeof(md_inst_t)));
+        if( prediction != actual_outcome ) g_total_mispredictions_iv++;
+        
+        if(actual_outcome == 1){ 
+          if((bpred_pht_iv[index] & 0x03) != 3){
+            bpred_pht_iv[index]++;
           }
         }
-        else if(prediction == 2 || prediction == 3) { // if prediction 10(2) or 11(3) then should be HIT
-          if(actual_outcome == 0) { // then prediction is incorrect
-            g_total_mispredictions_iv++;
-            if(prediction == 2) new_prediction = 1; // 10 to 01
-            if(prediction == 3) new_prediction = 2; // 11 to 10
-            bit_mask = (3<<(bit_section));         // (mask of the bits you want to set)
-            new_value = (whole_prediction & (~bit_mask)) | (new_prediction<<(bit_section)); // bit mask to get the new value for the bit section
-            bpred_pht_iv[index] = new_value; // update the table
-            history_iv = ((history_iv << 1) & 15);  // update history shift bit, keep first 4 bit
-          }
-          else if(actual_outcome == 1) { // then prediction is correct
-            if(prediction == 2) new_prediction = 3; // 10 to 11
-            if(prediction == 3) new_prediction = 3; // 11 to 11
-            bit_mask = (3<<(bit_section));         // (mask of the bits you want to set)
-            new_value = (whole_prediction & (~bit_mask)) | (new_prediction<<(bit_section)); // bit mask to get the new value for the bit section
-            bpred_pht_iv[index] = new_value; // update the table
-            history_iv = ((history_iv << 1) & 15) + 1; // update history shift bit, keep first 4 bit
+        else{
+          if((bpred_pht_iv[index] & 0x03) != 0){
+            bpred_pht_iv[index]--;
           }
         }
+        history_iv = ((history_iv << 1) & (262144 - 1)) + actual_outcome;
       }
       /* END TASK 4 */
 
       /* BEGIN TASK 5 */
-      if( MD_OP_FLAGS(op) & F_COND ) {
-        g_total_cond_branches_v++;
-        unsigned index = (history_v << (18 - 18)) ^ ((regs.regs_PC >> 3) & ((1<<18)-1));
-        assert( index < ENTRIES );
-        
-        int prediction = (bpred_pht_v[index] & 0x02) >> 1;
-        int actual_outcome = (regs.regs_NPC != (regs.regs_PC + sizeof(md_inst_t))); // taken - 1, not taken - 0
-        if( prediction != actual_outcome ) g_total_mispredictions_v++;
-        // update the 2-bit predictor
-        if(actual_outcome == 1){ // taken
-          if((bpred_pht_v[index] & 0x03) != 3){
-            bpred_pht_v[index]++;
-          }
-        }
-        else{
-          if((bpred_pht_v[index] & 0x03) != 0){
-            bpred_pht_v[index]--;
-          }
-        }
-        
-        // update history
-        history_v = ((history_v << 1) & (ENTRIES - 1)) + actual_outcome;
-      }
+      
       /* END TASK 5 */
 
       /* go to the next instruction */
